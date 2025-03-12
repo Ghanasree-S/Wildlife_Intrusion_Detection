@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wildlife Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        video {
+            width: 100%;
+            max-height: 400px;
+            background-color: #f0f0f0;
+        }
+        .button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .button:disabled {
+            background-color: #cccccc;
+        }
+        .stats {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wildlife Detection Test Interface</h1>
+    
+    <div class="container">
+        <div class="video-container">
+            <h2>Select a Video</h2>
+            <input type="file" id="videoInput" accept="video/*">
+            <video id="inputVideo" controls></video>
+        </div>
+        
+        <button id="processBtn" class="button" disabled>Process Video</button>
+        
+        <div id="loading" class="loading">
+            <p>Processing video... This may take some time depending on the video length.</p>
+            <progress></progress>
+        </div>
+        
+        <div class="video-container">
+            <h2>Processed Video</h2>
+            <video id="outputVideo" controls></video>
+        </div>
+        
+        <div id="stats" class="stats">
+            <h2>Detection Statistics</h2>
+            <div id="statsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const videoInput = document.getElementById('videoInput');
+        const inputVideo = document.getElementById('inputVideo');
+        const processBtn = document.getElementById('processBtn');
+        const outputVideo = document.getElementById('outputVideo');
+        const loading = document.getElementById('loading');
+        const stats = document.getElementById('stats');
+        const statsContent = document.getElementById('statsContent');
+        
+        let selectedFile = null;
+        
+        videoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            selectedFile = file;
+            inputVideo.src = URL.createObjectURL(file);
+            processBtn.disabled = false;
+        });
+        
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            // Show loading and disable button
+            loading.style.display = 'block';
+            processBtn.disabled = true;
+            
+            // Create FormData and append the video
+            const formData = new FormData();
+            formData.append('video', selectedFile);
+            
+            try {
+                // Send to the server
+                const response = await fetch('/process_video', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Set the processed video
+                const videoBlob = base64ToBlob(data.processed_video, 'video/mp4');
+                outputVideo.src = URL.createObjectURL(videoBlob);
+                
+                // Display statistics
+                displayStats(data.statistics);
+                stats.style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing video: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        });
+        
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteArrays = [];
+            
+            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                const slice = byteCharacters.slice(offset, offset + 512);
+                
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+                
+                const byteArray = new Uint8Array(byteNumbers);
+                byteArrays.push(byteArray);
+            }
+            
+            return new Blob(byteArrays, { type: mimeType });
+        }
+        
+        function displayStats(statistics) {
+            statsContent.innerHTML = '';
+            
+            for (const [label, count] of Object.entries(statistics)) {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.margin = '5px 0';
+                
+                const labelEl = document.createElement('span');
+                labelEl.textContent = label;
+                
+                const countEl = document.createElement('span');
+                countEl.textContent = count;
+                countEl.style.fontWeight = 'bold';
+                
+                row.appendChild(labelEl);
+                row.appendChild(countEl);
+                statsContent.appendChild(row);
+            }
+        }
+    </script>
+</body>
+</html>
